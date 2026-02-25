@@ -482,12 +482,12 @@
                 const downloadId = `geojson_download_${count}`;
 
                 const campos = [
-                    { label: 'Poligono', value: encoded, color: 'text-green-400', mono: true, rows: 3 },
-                    { label: 'LatitudeCentroide', value: centroid.lat.toFixed(6), color: 'text-blue-400' },
-                    { label: 'LongitudeCentroide', value: centroid.lon.toFixed(6), color: 'text-blue-400' },
+                    { label: 'Poligono (polyline)', value: encoded, color: 'text-green-400', mono: true, rows: 3 },
+                    { label: 'Latitude centroide', value: centroid.lat.toFixed(6), color: 'text-blue-400' },
+                    { label: 'Longitude centroide', value: centroid.lon.toFixed(6), color: 'text-blue-400' },
                     { label: 'Nome', value: name, color: 'text-purple-400' },
                     { label: 'Pontos', value: String(coords.length), color: 'text-gray-300' },
-                    { label: 'BBox (minLat, minLon, maxLat, maxLon)', value: `${bbMinLat.toFixed(6)}, ${bbMinLon.toFixed(6)}, ${bbMaxLat.toFixed(6)}, ${bbMaxLon.toFixed(6)}`, color: 'text-yellow-400' },
+                    { label: 'MinLat, MinLon, MaxLat, MaxLon', value: `${bbMinLat.toFixed(6)}, ${bbMinLon.toFixed(6)}, ${bbMaxLat.toFixed(6)}, ${bbMaxLon.toFixed(6)}`, color: 'text-yellow-400' },
                 ];
 
                 let camposHtml = campos.map(c => {
