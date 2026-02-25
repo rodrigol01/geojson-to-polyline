@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoJSON → Encoded Polyline</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <h1 class="text-2xl font-bold mb-2">GeoJSON → Google Encoded Polyline</h1>
+        <p class="text-gray-400 mb-6">Converte polígonos de GeoJSON para o formato polyline</p>
+
+        <!-- Busca Nominatim -->
+        <div class="bg-gray-800 border border-gray-700 rounded-lg p-5 mb-6">
+            <h2 class="text-lg font-semibold text-gray-300 mb-3">Buscar polígono por nome ou carregar arquivo</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Bairro</label>
+                    <input type="text" id="inputBairro" placeholder="Ex: Centro"
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Cidade</label>
+                    <input type="text" id="inputCidade" placeholder="Ex: Salvador"
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 mb-1">Estado</label>
+                    <input type="text" id="inputEstado" placeholder="Ex: BA"
+                        class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="flex items-end gap-2">
+                    <button id="btnBuscar" onclick="buscarNominatim()" disabled
+                        class="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium px-6 py-2 rounded-lg transition flex items-center justify-center gap-2">
+                        <span id="buscarTexto">Buscar</span>
+                        <svg id="buscarSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                    </button>
+                    <label class="cursor-pointer bg-gray-700 hover:bg-gray-600 text-sm px-4 py-2 rounded-lg transition text-center whitespace-nowrap">
+                        Carregar arquivo
+                        <input type="file" id="fileInput" accept=".geojson,.json" class="hidden">
+                    </label>
+                </div>
+            </div>
+            <!-- Resultados da busca -->
+            <div id="nominatimResultados" class="hidden mt-4">
+                <label class="block text-xs text-gray-400 mb-2">Selecione um resultado:</label>
+                <div id="nominatimLista" class="space-y-2 max-h-60 overflow-y-auto"></div>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">GeoJSON</label>
+                <textarea id="geojsonInput" rows="16"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm font-mono text-gray-200 focus:outline-none focus:border-blue-500 resize-y"
+                    placeholder='Cole aqui o GeoJSON ou use a busca acima...'></textarea>
+                <div class="flex gap-3 mt-3">
+                    <button id="btnConverter" onclick="converter()" disabled
+                        class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium px-6 py-2 rounded-lg transition">
+                        Converter
+                    </button>
+                    <button id="btnLimpar" onclick="limpar()" disabled
+                        class="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-sm px-4 py-2 rounded-lg transition">
+                        Limpar
+                    </button>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-300 mb-2">Preview</label>
+                <div id="preview" class="w-full h-[400px] bg-gray-800 border border-gray-700 rounded-lg overflow-hidden relative">
+                    <div id="previewPlaceholder" class="absolute inset-0 flex items-center justify-center text-gray-500 z-10">Nenhum polígono carregado</div>
+                    <div id="map" class="w-full h-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Erro -->
+        <div id="erro" class="hidden bg-red-900/50 border border-red-700 text-red-200 rounded-lg p-4 mb-6"></div>
+
+        <!-- Resultados -->
+        <div id="resultados" class="space-y-4"></div>
+    </div>
+
+    <script>
+        // File upload handler
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                document.getElementById('geojsonInput').value = ev.target.result;
+                atualizarBotoes();
+            };
+            reader.readAsText(file);
+        });
+
+        // Validate search fields: estado required; if bairro filled, cidade also required
+        function atualizarBtnBuscar() {
+            const bairro = document.getElementById('inputBairro').value.trim();
+            const cidade = document.getElementById('inputCidade').value.trim();
+            const estado = document.getElementById('inputEstado').value.trim();
+            let valido = false;
+            if (estado) {
+                if (bairro && !cidade) valido = false; // bairro requires cidade
+                else valido = true;
+            }
+            document.getElementById('btnBuscar').disabled = !valido;
+        }
+
+        // Update converter/limpar based on textarea content
+        function atualizarBotoes() {
+            const temTexto = document.getElementById('geojsonInput').value.trim().length > 0;
+            const temResultados = document.getElementById('resultados').innerHTML.trim().length > 0;
+            document.getElementById('btnConverter').disabled = !temTexto;
+            document.getElementById('btnLimpar').disabled = !temTexto && !temResultados;
+        }
+
+        // Wire up search field validation
+        for (const id of ['inputBairro', 'inputCidade', 'inputEstado']) {
+            document.getElementById(id).addEventListener('input', atualizarBtnBuscar);
+            document.getElementById(id).addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !document.getElementById('btnBuscar').disabled) buscarNominatim();
+            });
+        }
+
+        // Wire up textarea change detection
+        document.getElementById('geojsonInput').addEventListener('input', atualizarBotoes);
+
+        // ============================================================
+        // Busca Nominatim
+        // ============================================================
+        async function buscarNominatim() {
+            const bairro = document.getElementById('inputBairro').value.trim();
+            const cidade = document.getElementById('inputCidade').value.trim();
+            const estado = document.getElementById('inputEstado').value.trim();
+
+            if (!bairro && !cidade && !estado) {
+                mostrarErro('Preencha ao menos um campo de busca.');
+                return;
+            }
+
+            const partes = [bairro, cidade, estado, 'Brasil'].filter(Boolean);
+            const q = partes.join(', ');
+
+            const btnTexto = document.getElementById('buscarTexto');
+            const spinner = document.getElementById('buscarSpinner');
+            const btn = document.getElementById('btnBuscar');
+            btn.disabled = true;
+            btnTexto.textContent = 'Buscando...';
+            spinner.classList.remove('hidden');
+
+            try {
+                const params = new URLSearchParams({
+                    q,
+                    format: 'geojson',
+                    polygon_geojson: '1',
+                    polygon_threshold: '0.0001',
+                    limit: '5'
+                });
+
+                const resp = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+                    headers: { 'User-Agent': 'GeoJSON-Polyline-Converter/1.0' }
+                });
+
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+
+                const data = await resp.json();
+
+                if (!data.features || data.features.length === 0) {
+                    mostrarErro(`Nenhum resultado encontrado para "${q}".`);
+                    document.getElementById('nominatimResultados').classList.add('hidden');
+                    return;
+                }
+
+                exibirResultadosNominatim(data.features);
+            } catch (e) {
+                mostrarErro('Erro na busca Nominatim: ' + e.message);
+            } finally {
+                btnTexto.textContent = 'Buscar';
+                spinner.classList.add('hidden');
+                atualizarBtnBuscar();
+            }
+        }
+
+        function exibirResultadosNominatim(features) {
+            const container = document.getElementById('nominatimLista');
+            const wrapper = document.getElementById('nominatimResultados');
+            container.innerHTML = '';
+            wrapper.classList.remove('hidden');
+            esconderErro();
+
+            for (let i = 0; i < features.length; i++) {
+                const f = features[i];
+                const props = f.properties || {};
+                const geomType = f.geometry?.type || '?';
+                const hasPolygon = geomType === 'Polygon' || geomType === 'MultiPolygon';
+                const displayName = props.display_name || 'Sem nome';
+                const category = props.category || '';
+                const type = props.type || '';
+                const tag = category && type ? `${category}/${type}` : geomType;
+
+                const item = document.createElement('div');
+                item.className = `flex items-center justify-between gap-3 p-3 rounded-lg border transition cursor-pointer ${
+                    hasPolygon
+                        ? 'border-gray-600 bg-gray-900 hover:border-blue-500 hover:bg-gray-800'
+                        : 'border-gray-700 bg-gray-900/50 opacity-50 cursor-not-allowed'
+                }`;
+
+                item.innerHTML = `
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm text-gray-200 truncate">${escapeHtml(displayName)}</div>
+                        <div class="text-xs text-gray-500 mt-0.5">
+                            <span class="inline-block bg-gray-700 rounded px-1.5 py-0.5 mr-1">${escapeHtml(tag)}</span>
+                            <span class="inline-block bg-gray-700 rounded px-1.5 py-0.5">${escapeHtml(geomType)}</span>
+                            ${!hasPolygon ? '<span class="text-red-400 ml-2">sem polígono</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="flex gap-2 shrink-0">
+                        ${hasPolygon ? `<button onclick="event.stopPropagation(); baixarGeoJSON(nominatimCache[${i}])" class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded-lg transition" title="Baixar GeoJSON">Baixar .geojson</button>` : ''}
+                        ${hasPolygon ? `<button onclick="event.stopPropagation(); selecionarResultado(${i})" class="bg-blue-600 hover:bg-blue-700 text-xs px-3 py-1.5 rounded-lg transition font-medium">Selecionar</button>` : ''}
+                    </div>
+                `;
+
+                if (hasPolygon) {
+                    item.addEventListener('click', () => selecionarResultado(i));
+                }
+
+                container.appendChild(item);
+            }
+
+            // Cache features for selection
+            window.nominatimCache = features;
+        }
+
+        function selecionarResultado(index) {
+            const feature = window.nominatimCache[index];
+            if (!feature) return;
+
+            // Build a clean FeatureCollection with just this feature
+            const geojson = {
+                type: 'FeatureCollection',
+                features: [feature]
+            };
+
+            document.getElementById('geojsonInput').value = JSON.stringify(geojson, null, 2);
+            atualizarBotoes();
+
+            // Highlight selected item
+            const items = document.getElementById('nominatimLista').children;
+            for (let i = 0; i < items.length; i++) {
+                items[i].classList.toggle('border-blue-500', i === index);
+                items[i].classList.toggle('border-gray-600', i !== index);
+            }
+
+            // Auto-convert
+            converter();
+        }
+
+        function baixarGeoJSON(feature) {
+            if (!feature) return;
+            const geojson = {
+                type: 'FeatureCollection',
+                features: [feature]
+            };
+            const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
+            const url = URL.createObjectURL(blob);
+            const name = (feature.properties?.display_name || 'poligono').split(',')[0].trim().replace(/\s+/g, '-').toLowerCase();
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${name}.geojson`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function mostrarErro(msg) {
+            const el = document.getElementById('erro');
+            el.textContent = msg;
+            el.classList.remove('hidden');
+        }
+
+        function esconderErro() {
+            document.getElementById('erro').classList.add('hidden');
+        }
+
+        function limpar() {
+            document.getElementById('geojsonInput').value = '';
+            document.getElementById('resultados').innerHTML = '';
+            document.getElementById('erro').classList.add('hidden');
+            if (polygonLayer) polygonLayer.clearLayers();
+            document.getElementById('previewPlaceholder').classList.remove('hidden');
+            document.getElementById('nominatimResultados').classList.add('hidden');
+            document.getElementById('nominatimLista').innerHTML = '';
+            atualizarBotoes();
+        }
+
+        // ============================================================
+        // Google Encoded Polyline - port de PolylineConverterOld.cs
+        // ============================================================
+        function encodeDiff(diff) {
+            let shifted = diff << 1;
+            if (diff < 0) shifted = ~shifted;
+            let rem = shifted;
+            let result = '';
+            while (rem >= 0x20) {
+                result += String.fromCharCode((0x20 | (rem & 0x1f)) + 63);
+                rem >>= 5;
+            }
+            result += String.fromCharCode(rem + 63);
+            return result;
+        }
+
+        function encodePolyline(coordinates) {
+            let encoded = '';
+            let lastLat = 0;
+            let lastLng = 0;
+            for (const coord of coordinates) {
+                // GeoJSON: [longitude, latitude]
+                const lat = Math.round(coord[1] * 1e5);
+                const lng = Math.round(coord[0] * 1e5);
+                encoded += encodeDiff(lat - lastLat);
+                encoded += encodeDiff(lng - lastLng);
+                lastLat = lat;
+                lastLng = lng;
+            }
+            return encoded;
+        }
+
+        function calcCentroid(coordinates) {
+            let sumLat = 0, sumLon = 0;
+            const n = coordinates.length;
+            for (const [lon, lat] of coordinates) {
+                sumLat += lat;
+                sumLon += lon;
+            }
+            return { lat: sumLat / n, lon: sumLon / n };
+        }
+
+        // ============================================================
+        // Leaflet Map Preview
+        // ============================================================
+        let leafletMap = null;
+        let polygonLayer = null;
+
+        function initMap() {
+            if (leafletMap) return;
+            leafletMap = L.map('map', { zoomControl: true }).setView([-15.78, -47.93], 4);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap',
+                maxZoom: 19
+            }).addTo(leafletMap);
+            polygonLayer = L.featureGroup().addTo(leafletMap);
+        }
+
+        function renderPreview(features) {
+            const placeholder = document.getElementById('previewPlaceholder');
+            if (features.length === 0) {
+                placeholder.classList.remove('hidden');
+                if (polygonLayer) polygonLayer.clearLayers();
+                return;
+            }
+
+            placeholder.classList.add('hidden');
+            initMap();
+            polygonLayer.clearLayers();
+
+            const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+            features.forEach((f, i) => {
+                const color = colors[i % colors.length];
+                // GeoJSON coords are [lon, lat], Leaflet needs [lat, lon]
+                const latLngs = f.coordinates.map(([lon, lat]) => [lat, lon]);
+                L.polygon(latLngs, {
+                    color: color,
+                    weight: 2,
+                    fillColor: color,
+                    fillOpacity: 0.15
+                }).bindTooltip(f.name || '', { sticky: true }).addTo(polygonLayer);
+            });
+
+            leafletMap.invalidateSize();
+            leafletMap.fitBounds(polygonLayer.getBounds().pad(0.1));
+        }
+
+        // ============================================================
+        // Converter
+        // ============================================================
+        function converter() {
+            const erroEl = document.getElementById('erro');
+            const resultadosEl = document.getElementById('resultados');
+            erroEl.classList.add('hidden');
+            resultadosEl.innerHTML = '';
+
+            const input = document.getElementById('geojsonInput').value.trim();
+            if (!input) {
+                erroEl.textContent = 'Cole ou carregue um GeoJSON primeiro.';
+                erroEl.classList.remove('hidden');
+                return;
+            }
+
+            let geojson;
+            try {
+                geojson = JSON.parse(input);
+            } catch (e) {
+                erroEl.textContent = 'JSON inválido: ' + e.message;
+                erroEl.classList.remove('hidden');
+                return;
+            }
+
+            // Normalize to feature array
+            let features = [];
+            if (geojson.type === 'FeatureCollection') {
+                features = geojson.features || [];
+            } else if (geojson.type === 'Feature') {
+                features = [geojson];
+            } else if (geojson.type === 'Polygon' || geojson.type === 'MultiPolygon') {
+                features = [{ type: 'Feature', geometry: geojson, properties: {} }];
+            }
+
+            if (features.length === 0) {
+                erroEl.textContent = 'Nenhuma feature encontrada no GeoJSON.';
+                erroEl.classList.remove('hidden');
+                return;
+            }
+
+            const previewData = [];
+            let html = '';
+            let count = 0;
+
+            for (const feature of features) {
+                const geom = feature.geometry;
+                if (!geom) continue;
+
+                const name = feature.properties?.name || feature.properties?.nome || feature.properties?.display_name || 'sem nome';
+                let coords;
+
+                if (geom.type === 'Polygon') {
+                    coords = geom.coordinates[0]; // exterior ring
+                } else if (geom.type === 'MultiPolygon') {
+                    // Pick largest polygon by number of coordinates
+                    let maxLen = 0;
+                    for (const poly of geom.coordinates) {
+                        if (poly[0].length > maxLen) {
+                            maxLen = poly[0].length;
+                            coords = poly[0];
+                        }
+                    }
+                } else {
+                    continue;
+                }
+
+                if (!coords || coords.length < 3) continue;
+
+                const encoded = encodePolyline(coords);
+                const centroid = calcCentroid(coords);
+                count++;
+
+                previewData.push({ coordinates: coords, name });
+
+                // Build a single-feature GeoJSON for download
+                const singleFeatureGeoJSON = JSON.stringify({
+                    type: 'FeatureCollection',
+                    features: [feature]
+                }, null, 2);
+
+                // Bounding box
+                let bbMinLat = Infinity, bbMaxLat = -Infinity, bbMinLon = Infinity, bbMaxLon = -Infinity;
+                for (const [lon, lat] of coords) {
+                    if (lat < bbMinLat) bbMinLat = lat;
+                    if (lat > bbMaxLat) bbMaxLat = lat;
+                    if (lon < bbMinLon) bbMinLon = lon;
+                    if (lon > bbMaxLon) bbMaxLon = lon;
+                }
+
+                const downloadId = `geojson_download_${count}`;
+
+                const campos = [
+                    { label: 'Poligono', value: encoded, color: 'text-green-400', mono: true, rows: 3 },
+                    { label: 'LatitudeCentroide', value: centroid.lat.toFixed(6), color: 'text-blue-400' },
+                    { label: 'LongitudeCentroide', value: centroid.lon.toFixed(6), color: 'text-blue-400' },
+                    { label: 'Nome', value: name, color: 'text-purple-400' },
+                    { label: 'Pontos', value: String(coords.length), color: 'text-gray-300' },
+                    { label: 'BBox (minLat, minLon, maxLat, maxLon)', value: `${bbMinLat.toFixed(6)}, ${bbMinLon.toFixed(6)}, ${bbMaxLat.toFixed(6)}, ${bbMaxLon.toFixed(6)}`, color: 'text-yellow-400' },
+                ];
+
+                let camposHtml = campos.map(c => {
+                    if (c.rows) {
+                        return `
+                        <div class="mb-2">
+                            <label class="block text-xs text-gray-400 mb-1">${escapeHtml(c.label)} <span class="text-gray-600">(${encoded.length} chars)</span></label>
+                            <div class="relative">
+                                <textarea readonly rows="${c.rows}" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-xs font-mono ${c.color} resize-y pr-16">${escapeHtml(c.value)}</textarea>
+                                <button onclick="copiar(this, this.previousElementSibling.value)" class="absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded transition">Copiar</button>
+                            </div>
+                        </div>`;
+                    }
+                    return `
+                    <div class="flex items-center gap-2 py-1.5 border-b border-gray-700/50 group">
+                        <span class="text-xs text-gray-400 w-48 shrink-0">${escapeHtml(c.label)}</span>
+                        <span class="text-sm font-mono ${c.color} flex-1 truncate" title="${escapeHtml(c.value)}">${escapeHtml(c.value)}</span>
+                        <button onclick="copiar(this, '${escapeHtml(c.value).replace(/'/g, "\\'")}')" class="opacity-0 group-hover:opacity-100 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded transition shrink-0">Copiar</button>
+                    </div>`;
+                }).join('');
+
+                html += `
+                <div class="bg-gray-800 border border-gray-700 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-blue-400">${escapeHtml(name)}</h3>
+                        <button onclick="baixarGeoJSONTexto('${downloadId}')" class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded-lg transition">Baixar .geojson</button>
+                    </div>
+                    <textarea id="${downloadId}" class="hidden">${escapeHtml(singleFeatureGeoJSON)}</textarea>
+                    ${camposHtml}
+                </div>`;
+            }
+
+            if (count === 0) {
+                erroEl.textContent = 'Nenhum polígono (Polygon/MultiPolygon) encontrado nas features.';
+                erroEl.classList.remove('hidden');
+                return;
+            }
+
+            resultadosEl.innerHTML = `<h2 class="text-lg font-semibold text-gray-300">${count} polígono(s) convertido(s)</h2>` + html;
+            renderPreview(previewData);
+            atualizarBotoes();
+        }
+
+        function baixarGeoJSONTexto(id) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            // Decode HTML entities back
+            const tmp = document.createElement('textarea');
+            tmp.innerHTML = el.value;
+            const text = tmp.value;
+
+            const blob = new Blob([text], { type: 'application/geo+json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'poligono.geojson';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function copiar(btn, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const original = btn.textContent;
+                btn.textContent = 'Copiado!';
+                btn.classList.add('bg-green-700');
+                setTimeout(() => {
+                    btn.textContent = original;
+                    btn.classList.remove('bg-green-700');
+                }, 1500);
+            });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+</body>
+</html>
