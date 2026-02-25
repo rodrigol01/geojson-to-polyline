@@ -1,55 +1,113 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoJSON → Encoded Polyline</title>
+    <title>GeoJSON to Encoded Polyline Converter — Free Online Tool</title>
+    <meta name="description" content="Free online tool to convert GeoJSON polygons to Google Encoded Polyline format. Search by place name via Nominatim, preview on map, copy polyline, centroid, bounding box. Supports Polygon and MultiPolygon.">
+    <meta name="keywords" content="geojson to polyline, geojson to encoded polyline, convert geojson polyline, google encoded polyline, geojson polygon converter, polyline encoder, geojson tool online">
+    <link rel="canonical" href="https://geojson-to-polyline.vercel.app/">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="GeoJSON to Encoded Polyline Converter">
+    <meta property="og:description" content="Free online tool to convert GeoJSON polygons to Google Encoded Polyline. Search places by name, preview on map, download GeoJSON.">
+    <meta property="og:url" content="https://geojson-to-polyline.vercel.app/">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="GeoJSON to Encoded Polyline Converter">
+    <meta name="twitter:description" content="Convert GeoJSON polygons to Google Encoded Polyline format. Free online tool with map preview.">
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "GeoJSON to Encoded Polyline Converter",
+        "url": "https://geojson-to-polyline.vercel.app/",
+        "description": "Free online tool to convert GeoJSON polygons and multipolygons to Google Encoded Polyline format. Search places by name via OpenStreetMap Nominatim, preview polygons on an interactive map, and copy encoded polyline, centroid coordinates, and bounding box.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Any",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+            "Convert GeoJSON Polygon to Google Encoded Polyline",
+            "Convert GeoJSON MultiPolygon to Google Encoded Polyline",
+            "Search places by name via Nominatim",
+            "Interactive map preview with Leaflet",
+            "Calculate centroid coordinates",
+            "Calculate bounding box",
+            "Download GeoJSON files",
+            "Upload GeoJSON files"
+        ]
+    }
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen">
-    <div class="max-w-6xl mx-auto px-4 py-8">
-        <h1 class="text-2xl font-bold mb-2">GeoJSON → Google Encoded Polyline</h1>
-        <p class="text-gray-400 mb-6">Converte polígonos de GeoJSON para o formato polyline</p>
+    <!-- Loading overlay (outside main, z-[10000] to cover Leaflet) -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-gray-900/80 flex items-center justify-center" style="z-index:10000">
+        <div class="flex flex-col items-center gap-3">
+            <svg class="animate-spin h-8 w-8 text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+            </svg>
+            <span id="loadingText" class="text-gray-300 text-sm" data-i18n="loading">Converting...</span>
+        </div>
+    </div>
+
+    <main class="max-w-6xl mx-auto px-4 py-8">
+        <header class="mb-6 flex items-start justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold mb-2" data-i18n="title">GeoJSON to Encoded Polyline Converter</h1>
+                <p class="text-gray-400" data-i18n="subtitle">Convert GeoJSON polygons to <strong class="text-gray-300">Google Encoded Polyline</strong> format. Search by place name or paste your GeoJSON.</p>
+            </div>
+            <button onclick="toggleLang()" id="btnLang"
+                class="shrink-0 mt-1 bg-gray-800 border border-gray-600 hover:border-gray-500 text-xs px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 text-gray-300">
+                EN
+            </button>
+        </header>
 
         <!-- Busca Nominatim -->
         <div class="bg-gray-800 border border-gray-700 rounded-lg p-5 mb-6">
-            <h2 class="text-lg font-semibold text-gray-300 mb-3">Buscar polígono por nome ou carregar arquivo</h2>
+            <h2 class="text-lg font-semibold text-gray-300 mb-3" data-i18n="searchTitle">Search polygon by name or upload file</h2>
             <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Bairro</label>
-                    <input type="text" id="inputBairro" placeholder="Ex: Centro"
+                    <label class="block text-xs text-gray-400 mb-1" data-i18n="labelNeighborhood">Neighborhood</label>
+                    <input type="text" id="inputBairro" data-i18n-placeholder="phNeighborhood" placeholder="e.g. Centro"
                         class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Cidade</label>
-                    <input type="text" id="inputCidade" placeholder="Ex: Salvador"
+                    <label class="block text-xs text-gray-400 mb-1" data-i18n="labelCity">City</label>
+                    <input type="text" id="inputCidade" data-i18n-placeholder="phCity" placeholder="e.g. Salvador"
                         class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 mb-1">Estado</label>
-                    <input type="text" id="inputEstado" placeholder="Ex: BA"
+                    <label class="block text-xs text-gray-400 mb-1" data-i18n="labelState">State</label>
+                    <input type="text" id="inputEstado" data-i18n-placeholder="phState" placeholder="e.g. BA"
                         class="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500">
                 </div>
                 <div class="flex items-end gap-2">
                     <button id="btnBuscar" onclick="buscarNominatim()" disabled
                         class="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium px-6 py-2 rounded-lg transition flex items-center justify-center gap-2">
-                        <span id="buscarTexto">Buscar</span>
+                        <span id="buscarTexto" data-i18n="btnSearch">Search</span>
                         <svg id="buscarSpinner" class="hidden animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                         </svg>
                     </button>
-                    <label class="cursor-pointer bg-gray-700 hover:bg-gray-600 text-sm px-4 py-2 rounded-lg transition text-center whitespace-nowrap">
-                        Carregar arquivo
+                    <label class="cursor-pointer bg-gray-700 hover:bg-gray-600 text-sm px-4 py-2 rounded-lg transition text-center whitespace-nowrap" data-i18n="btnUpload">
+                        Upload file
                         <input type="file" id="fileInput" accept=".geojson,.json" class="hidden">
                     </label>
                 </div>
             </div>
             <!-- Resultados da busca -->
             <div id="nominatimResultados" class="hidden mt-4">
-                <label class="block text-xs text-gray-400 mb-2">Selecione um resultado:</label>
+                <label class="block text-xs text-gray-400 mb-2" data-i18n="selectResult">Select a result:</label>
                 <div id="nominatimLista" class="space-y-2 max-h-60 overflow-y-auto"></div>
             </div>
         </div>
@@ -60,22 +118,22 @@
                 <label class="block text-sm font-medium text-gray-300 mb-2">GeoJSON</label>
                 <textarea id="geojsonInput" rows="16"
                     class="w-full bg-gray-800 border border-gray-700 rounded-lg p-3 text-sm font-mono text-gray-200 focus:outline-none focus:border-blue-500 resize-y"
-                    placeholder='Cole aqui o GeoJSON ou use a busca acima...'></textarea>
+                    data-i18n-placeholder="phGeojson" placeholder='Paste GeoJSON here or use the search above...'></textarea>
                 <div class="flex gap-3 mt-3">
                     <button id="btnConverter" onclick="converter()" disabled
                         class="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium px-6 py-2 rounded-lg transition">
-                        Converter
+                        <span data-i18n="btnConvert">Convert</span>
                     </button>
                     <button id="btnLimpar" onclick="limpar()" disabled
                         class="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-sm px-4 py-2 rounded-lg transition">
-                        Limpar
+                        <span data-i18n="btnClear">Clear</span>
                     </button>
                 </div>
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-300 mb-2">Preview</label>
+                <label class="block text-sm font-medium text-gray-300 mb-2" data-i18n="labelPreview">Preview</label>
                 <div id="preview" class="w-full h-[400px] bg-gray-800 border border-gray-700 rounded-lg overflow-hidden relative">
-                    <div id="previewPlaceholder" class="absolute inset-0 flex items-center justify-center text-gray-500 z-10">Nenhum polígono carregado</div>
+                    <div id="previewPlaceholder" class="absolute inset-0 flex items-center justify-center text-gray-500 z-10" data-i18n="noPolygon">No polygon loaded</div>
                     <div id="map" class="w-full h-full"></div>
                 </div>
             </div>
@@ -86,9 +144,229 @@
 
         <!-- Resultados -->
         <div id="resultados" class="space-y-4"></div>
-    </div>
+
+        <!-- SEO Content -->
+        <section class="mt-16 border-t border-gray-800 pt-10 space-y-8 text-sm text-gray-400">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-300 mb-3" data-i18n="seoWhatTitle">What is Google Encoded Polyline?</h2>
+                <p data-i18n="seoWhatText">Google Encoded Polyline is a compact string format for representing a series of latitude/longitude coordinates. It uses an encoding algorithm that reduces the size of coordinate data by encoding differences between consecutive points as ASCII characters. This format is widely used in Google Maps APIs, routing engines like OSRM, and spatial databases to efficiently store polygon boundaries and route paths.</p>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-300 mb-3" data-i18n="seoHowTitle">How to convert GeoJSON to Encoded Polyline</h2>
+                <ol class="list-decimal list-inside space-y-2">
+                    <li data-i18n="seoHowStep1"><strong class="text-gray-300">Search by name</strong> — Type a neighborhood, city, or state name and click Search. The tool queries OpenStreetMap Nominatim to find the polygon boundary.</li>
+                    <li data-i18n="seoHowStep2"><strong class="text-gray-300">Or paste GeoJSON</strong> — Paste a GeoJSON FeatureCollection, Feature, Polygon, or MultiPolygon into the text area.</li>
+                    <li data-i18n="seoHowStep3"><strong class="text-gray-300">Or upload a file</strong> — Load a <code>.geojson</code> or <code>.json</code> file from your computer.</li>
+                    <li data-i18n="seoHowStep4"><strong class="text-gray-300">Convert</strong> — Click Convert to generate the encoded polyline string, centroid coordinates, bounding box, and an interactive map preview.</li>
+                    <li data-i18n="seoHowStep5"><strong class="text-gray-300">Copy or download</strong> — Copy individual fields with one click or download the GeoJSON file.</li>
+                </ol>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-300 mb-3" data-i18n="seoTypesTitle">Supported GeoJSON types</h2>
+                <ul class="list-disc list-inside space-y-1">
+                    <li data-i18n="seoType1"><strong class="text-gray-300">FeatureCollection</strong> — Converts all polygon features found in the collection.</li>
+                    <li data-i18n="seoType2"><strong class="text-gray-300">Feature</strong> — Converts a single feature with Polygon or MultiPolygon geometry.</li>
+                    <li data-i18n="seoType3"><strong class="text-gray-300">Polygon</strong> — Encodes the exterior ring of the polygon.</li>
+                    <li data-i18n="seoType4"><strong class="text-gray-300">MultiPolygon</strong> — Selects the largest polygon by vertex count and encodes it.</li>
+                </ul>
+            </div>
+            <div>
+                <h2 class="text-lg font-semibold text-gray-300 mb-3" data-i18n="seoOutputTitle">Output fields</h2>
+                <ul class="list-disc list-inside space-y-1">
+                    <li data-i18n="seoOutput1"><strong class="text-gray-300">Encoded Polyline</strong> — The Google Encoded Polyline string ready for use in APIs and databases.</li>
+                    <li data-i18n="seoOutput2"><strong class="text-gray-300">Centroid (Lat, Lon)</strong> — The geometric center of the polygon, useful for map centering.</li>
+                    <li data-i18n="seoOutput3"><strong class="text-gray-300">Bounding Box</strong> — MinLat, MinLon, MaxLat, MaxLon — the extent of the polygon.</li>
+                    <li data-i18n="seoOutput4"><strong class="text-gray-300">Point count</strong> — Number of vertices in the polygon.</li>
+                </ul>
+            </div>
+            <div itemscope itemtype="https://schema.org/FAQPage">
+                <h2 class="text-lg font-semibold text-gray-300 mb-3">FAQ</h2>
+                <div class="space-y-4 mt-4" itemscope itemprop="mainEntity" itemtype="https://schema.org/Question">
+                    <div>
+                        <h3 class="text-gray-300 font-medium" itemprop="name" data-i18n="faq2q">What encoding precision does this tool use?</h3>
+                        <p itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer"><span itemprop="text" data-i18n="faq2a">The tool uses 1e5 (5 decimal places) precision, which is the standard used by Google's Encoded Polyline Algorithm.</span></p>
+                    </div>
+                </div>
+                <div class="space-y-4 mt-4" itemscope itemprop="mainEntity" itemtype="https://schema.org/Question">
+                    <div>
+                        <h3 class="text-gray-300 font-medium" itemprop="name" data-i18n="faq3q">Can I convert a MultiPolygon?</h3>
+                        <p itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer"><span itemprop="text" data-i18n="faq3a">Yes. For MultiPolygon geometries, the tool selects the largest polygon (by vertex count) and encodes its exterior ring.</span></p>
+                    </div>
+                </div>
+                <div class="space-y-4 mt-4" itemscope itemprop="mainEntity" itemtype="https://schema.org/Question">
+                    <div>
+                        <h3 class="text-gray-300 font-medium" itemprop="name" data-i18n="faq4q">Where does the place search data come from?</h3>
+                        <p itemscope itemprop="acceptedAnswer" itemtype="https://schema.org/Answer"><span itemprop="text" data-i18n="faq4a">Place search uses the OpenStreetMap Nominatim API, which provides geocoding based on OpenStreetMap data. Results include administrative boundaries like neighborhoods, cities, and states.</span></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+    <footer class="max-w-6xl mx-auto px-4 py-6 text-center text-xs text-gray-600 border-t border-gray-800" data-i18n="footer">
+        GeoJSON to Encoded Polyline Converter — Free online tool. Map data &copy; <a href="https://www.openstreetmap.org/" class="underline hover:text-gray-400" rel="noopener">OpenStreetMap</a> contributors.
+    </footer>
 
     <script>
+        // ============================================================
+        // i18n
+        // ============================================================
+        const i18n = {
+            en: {
+                title: 'GeoJSON to Encoded Polyline Converter',
+                subtitle: 'Convert GeoJSON polygons to <strong class="text-gray-300">Google Encoded Polyline</strong> format. Search by place name or paste your GeoJSON.',
+                searchTitle: 'Search polygon by name or upload file',
+                labelNeighborhood: 'Neighborhood', labelCity: 'City', labelState: 'State',
+                phNeighborhood: 'e.g. Centro', phCity: 'e.g. Salvador', phState: 'e.g. BA',
+                btnSearch: 'Search', btnSearching: 'Searching...', btnUpload: 'Upload file',
+                selectResult: 'Select a result:',
+                phGeojson: 'Paste GeoJSON here or use the search above...',
+                btnConvert: 'Convert', btnClear: 'Clear', labelPreview: 'Preview',
+                noPolygon: 'No polygon loaded',
+                btnCopy: 'Copy', btnCopied: 'Copied!', btnDownload: 'Download .geojson',
+                btnSelect: 'Select', noPolygonTag: 'no polygon',
+                errEmpty: 'Paste or upload a GeoJSON first.',
+                errJson: 'Invalid JSON: ',
+                errNoFeature: 'No features found in the GeoJSON.',
+                errNoPolygon: 'No polygon (Polygon/MultiPolygon) found in features.',
+                errSearchEmpty: 'Fill in at least one search field.',
+                errSearchNone: 'No results found for',
+                errSearchFail: 'Nominatim search error: ',
+                resultCount: 'polygon(s) converted',
+                loading: 'Converting...',
+                // SEO
+                seoWhatTitle: 'What is Google Encoded Polyline?',
+                seoWhatText: 'Google Encoded Polyline is a compact string format for representing a series of latitude/longitude coordinates. It uses an encoding algorithm that reduces the size of coordinate data by encoding differences between consecutive points as ASCII characters. This format is widely used in Google Maps APIs, routing engines like OSRM, and spatial databases to efficiently store polygon boundaries and route paths.',
+                seoHowTitle: 'How to convert GeoJSON to Encoded Polyline',
+                seoHowStep1: '<strong class="text-gray-300">Search by name</strong> — Type a neighborhood, city, or state name and click Search. The tool queries OpenStreetMap Nominatim to find the polygon boundary.',
+                seoHowStep2: '<strong class="text-gray-300">Or paste GeoJSON</strong> — Paste a GeoJSON FeatureCollection, Feature, Polygon, or MultiPolygon into the text area.',
+                seoHowStep3: '<strong class="text-gray-300">Or upload a file</strong> — Load a <code>.geojson</code> or <code>.json</code> file from your computer.',
+                seoHowStep4: '<strong class="text-gray-300">Convert</strong> — Click Convert to generate the encoded polyline string, centroid coordinates, bounding box, and an interactive map preview.',
+                seoHowStep5: '<strong class="text-gray-300">Copy or download</strong> — Copy individual fields with one click or download the GeoJSON file.',
+                seoTypesTitle: 'Supported GeoJSON types',
+                seoType1: '<strong class="text-gray-300">FeatureCollection</strong> — Converts all polygon features found in the collection.',
+                seoType2: '<strong class="text-gray-300">Feature</strong> — Converts a single feature with Polygon or MultiPolygon geometry.',
+                seoType3: '<strong class="text-gray-300">Polygon</strong> — Encodes the exterior ring of the polygon.',
+                seoType4: '<strong class="text-gray-300">MultiPolygon</strong> — Selects the largest polygon by vertex count and encodes it.',
+                seoOutputTitle: 'Output fields',
+                seoOutput1: '<strong class="text-gray-300">Encoded Polyline</strong> — The Google Encoded Polyline string ready for use in APIs and databases.',
+                seoOutput2: '<strong class="text-gray-300">Centroid (Lat, Lon)</strong> — The geometric center of the polygon, useful for map centering.',
+                seoOutput3: '<strong class="text-gray-300">Bounding Box</strong> — MinLat, MinLon, MaxLat, MaxLon — the extent of the polygon.',
+                seoOutput4: '<strong class="text-gray-300">Point count</strong> — Number of vertices in the polygon.',
+                faq1q: 'Is this tool free?',
+                faq1a: 'Yes. This tool is completely free, runs entirely in your browser, and sends no data to any server (except Nominatim for place search).',
+                faq2q: 'What encoding precision does this tool use?',
+                faq2a: "The tool uses 1e5 (5 decimal places) precision, which is the standard used by Google's Encoded Polyline Algorithm.",
+                faq3q: 'Can I convert a MultiPolygon?',
+                faq3a: 'Yes. For MultiPolygon geometries, the tool selects the largest polygon (by vertex count) and encodes its exterior ring.',
+                faq4q: 'Where does the place search data come from?',
+                faq4a: 'Place search uses the OpenStreetMap Nominatim API, which provides geocoding based on OpenStreetMap data. Results include administrative boundaries like neighborhoods, cities, and states.',
+                footer: 'GeoJSON to Encoded Polyline Converter — Free online tool. Map data &copy; <a href="https://www.openstreetmap.org/" class="underline hover:text-gray-400" rel="noopener">OpenStreetMap</a> contributors.',
+            },
+            pt: {
+                title: 'Conversor GeoJSON para Encoded Polyline',
+                subtitle: 'Converte polígonos GeoJSON para o formato <strong class="text-gray-300">Google Encoded Polyline</strong>. Busque por nome ou cole seu GeoJSON.',
+                searchTitle: 'Buscar polígono por nome ou carregar arquivo',
+                labelNeighborhood: 'Bairro', labelCity: 'Cidade', labelState: 'Estado',
+                phNeighborhood: 'Ex: Centro', phCity: 'Ex: Salvador', phState: 'Ex: BA',
+                btnSearch: 'Buscar', btnSearching: 'Buscando...', btnUpload: 'Carregar arquivo',
+                selectResult: 'Selecione um resultado:',
+                phGeojson: 'Cole aqui o GeoJSON ou use a busca acima...',
+                btnConvert: 'Converter', btnClear: 'Limpar', labelPreview: 'Preview',
+                noPolygon: 'Nenhum polígono carregado',
+                btnCopy: 'Copiar', btnCopied: 'Copiado!', btnDownload: 'Baixar .geojson',
+                btnSelect: 'Selecionar', noPolygonTag: 'sem polígono',
+                errEmpty: 'Cole ou carregue um GeoJSON primeiro.',
+                errJson: 'JSON inválido: ',
+                errNoFeature: 'Nenhuma feature encontrada no GeoJSON.',
+                errNoPolygon: 'Nenhum polígono (Polygon/MultiPolygon) encontrado nas features.',
+                errSearchEmpty: 'Preencha ao menos um campo de busca.',
+                errSearchNone: 'Nenhum resultado encontrado para',
+                errSearchFail: 'Erro na busca Nominatim: ',
+                resultCount: 'polígono(s) convertido(s)',
+                loading: 'Convertendo...',
+                // SEO
+                seoWhatTitle: 'O que é Google Encoded Polyline?',
+                seoWhatText: 'Google Encoded Polyline é um formato compacto de string para representar uma série de coordenadas latitude/longitude. Ele usa um algoritmo de codificação que reduz o tamanho dos dados de coordenadas, codificando diferenças entre pontos consecutivos como caracteres ASCII. Este formato é amplamente usado em APIs do Google Maps, motores de roteamento como OSRM e bancos de dados espaciais para armazenar de forma eficiente limites de polígonos e caminhos de rotas.',
+                seoHowTitle: 'Como converter GeoJSON para Encoded Polyline',
+                seoHowStep1: '<strong class="text-gray-300">Buscar por nome</strong> — Digite o nome de um bairro, cidade ou estado e clique em Buscar. A ferramenta consulta o OpenStreetMap Nominatim para encontrar o limite do polígono.',
+                seoHowStep2: '<strong class="text-gray-300">Ou cole o GeoJSON</strong> — Cole um GeoJSON FeatureCollection, Feature, Polygon ou MultiPolygon na área de texto.',
+                seoHowStep3: '<strong class="text-gray-300">Ou carregue um arquivo</strong> — Carregue um arquivo <code>.geojson</code> ou <code>.json</code> do seu computador.',
+                seoHowStep4: '<strong class="text-gray-300">Converter</strong> — Clique em Converter para gerar a string encoded polyline, coordenadas do centroide, bounding box e uma pré-visualização interativa no mapa.',
+                seoHowStep5: '<strong class="text-gray-300">Copiar ou baixar</strong> — Copie campos individuais com um clique ou baixe o arquivo GeoJSON.',
+                seoTypesTitle: 'Tipos de GeoJSON suportados',
+                seoType1: '<strong class="text-gray-300">FeatureCollection</strong> — Converte todas as features de polígono encontradas na coleção.',
+                seoType2: '<strong class="text-gray-300">Feature</strong> — Converte uma feature individual com geometria Polygon ou MultiPolygon.',
+                seoType3: '<strong class="text-gray-300">Polygon</strong> — Codifica o anel exterior do polígono.',
+                seoType4: '<strong class="text-gray-300">MultiPolygon</strong> — Seleciona o maior polígono por contagem de vértices e o codifica.',
+                seoOutputTitle: 'Campos de saída',
+                seoOutput1: '<strong class="text-gray-300">Encoded Polyline</strong> — A string Google Encoded Polyline pronta para uso em APIs e bancos de dados.',
+                seoOutput2: '<strong class="text-gray-300">Centroide (Lat, Lon)</strong> — O centro geométrico do polígono, útil para centralizar no mapa.',
+                seoOutput3: '<strong class="text-gray-300">Bounding Box</strong> — MinLat, MinLon, MaxLat, MaxLon — a extensão do polígono.',
+                seoOutput4: '<strong class="text-gray-300">Contagem de pontos</strong> — Número de vértices no polígono.',
+                faq2q: 'Qual precisão de codificação esta ferramenta usa?',
+                faq2a: 'A ferramenta usa precisão 1e5 (5 casas decimais), que é o padrão do Algoritmo Encoded Polyline do Google.',
+                faq3q: 'Posso converter um MultiPolygon?',
+                faq3a: 'Sim. Para geometrias MultiPolygon, a ferramenta seleciona o maior polígono (por contagem de vértices) e codifica seu anel exterior.',
+                faq4q: 'De onde vêm os dados da busca de lugares?',
+                faq4a: 'A busca de lugares usa a API Nominatim do OpenStreetMap, que fornece geocodificação baseada em dados do OpenStreetMap. Os resultados incluem limites administrativos como bairros, cidades e estados.',
+                footer: 'Conversor GeoJSON para Encoded Polyline — Ferramenta online gratuita. Dados do mapa &copy; <a href="https://www.openstreetmap.org/" class="underline hover:text-gray-400" rel="noopener">OpenStreetMap</a> contributors.',
+            }
+        };
+
+        let currentLang = (navigator.language || '').startsWith('pt') ? 'pt' : 'en';
+
+        function t(key) { return i18n[currentLang][key] || i18n.en[key] || key; }
+
+        function applyLang() {
+            document.documentElement.lang = currentLang === 'pt' ? 'pt-BR' : 'en';
+            document.title = currentLang === 'pt'
+                ? 'Conversor GeoJSON para Encoded Polyline — Ferramenta Online Gratuita'
+                : 'GeoJSON to Encoded Polyline Converter — Free Online Tool';
+            // Update text content
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.dataset.i18n;
+                const val = t(key);
+                if (val.includes('<')) el.innerHTML = val; else el.textContent = val;
+            });
+            // Update placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                el.placeholder = t(el.dataset.i18nPlaceholder);
+            });
+            // Update lang toggle button (shows current language)
+            const btn = document.getElementById('btnLang');
+            btn.textContent = currentLang === 'pt' ? 'PT-BR' : 'EN';
+            // Special: upload label (has child input that must be preserved)
+            const uploadLabel = document.querySelector('[data-i18n="btnUpload"]');
+            if (uploadLabel) {
+                const input = uploadLabel.querySelector('input');
+                uploadLabel.textContent = t('btnUpload');
+                if (input) uploadLabel.appendChild(input);
+            }
+        }
+
+        function toggleLang() {
+            currentLang = currentLang === 'en' ? 'pt' : 'en';
+            localStorage.setItem('lang', currentLang);
+            applyLang();
+        }
+
+        // Restore saved preference
+        const saved = localStorage.getItem('lang');
+        if (saved) currentLang = saved;
+        // Apply on load (deferred to after DOM parse)
+        document.addEventListener('DOMContentLoaded', applyLang);
+
+        // ============================================================
+        // Loading overlay
+        // ============================================================
+        function showLoading() {
+            document.getElementById('loadingText').textContent = t('loading');
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
         // File upload handler
         document.getElementById('fileInput').addEventListener('change', function(e) {
             const file = e.target.files[0];
@@ -142,7 +420,7 @@
             const estado = document.getElementById('inputEstado').value.trim();
 
             if (!bairro && !cidade && !estado) {
-                mostrarErro('Preencha ao menos um campo de busca.');
+                mostrarErro(t('errSearchEmpty'));
                 return;
             }
 
@@ -153,7 +431,7 @@
             const spinner = document.getElementById('buscarSpinner');
             const btn = document.getElementById('btnBuscar');
             btn.disabled = true;
-            btnTexto.textContent = 'Buscando...';
+            btnTexto.textContent = t('btnSearching');
             spinner.classList.remove('hidden');
 
             try {
@@ -174,16 +452,16 @@
                 const data = await resp.json();
 
                 if (!data.features || data.features.length === 0) {
-                    mostrarErro(`Nenhum resultado encontrado para "${q}".`);
+                    mostrarErro(`${t('errSearchNone')} "${q}".`);
                     document.getElementById('nominatimResultados').classList.add('hidden');
                     return;
                 }
 
                 exibirResultadosNominatim(data.features);
             } catch (e) {
-                mostrarErro('Erro na busca Nominatim: ' + e.message);
+                mostrarErro(t('errSearchFail') + e.message);
             } finally {
-                btnTexto.textContent = 'Buscar';
+                btnTexto.textContent = t('btnSearch');
                 spinner.classList.add('hidden');
                 atualizarBtnBuscar();
             }
@@ -219,12 +497,12 @@
                         <div class="text-xs text-gray-500 mt-0.5">
                             <span class="inline-block bg-gray-700 rounded px-1.5 py-0.5 mr-1">${escapeHtml(tag)}</span>
                             <span class="inline-block bg-gray-700 rounded px-1.5 py-0.5">${escapeHtml(geomType)}</span>
-                            ${!hasPolygon ? '<span class="text-red-400 ml-2">sem polígono</span>' : ''}
+                            ${!hasPolygon ? `<span class="text-red-400 ml-2">${t('noPolygonTag')}</span>` : ''}
                         </div>
                     </div>
                     <div class="flex gap-2 shrink-0">
-                        ${hasPolygon ? `<button onclick="event.stopPropagation(); baixarGeoJSON(nominatimCache[${i}])" class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded-lg transition" title="Baixar GeoJSON">Baixar .geojson</button>` : ''}
-                        ${hasPolygon ? `<button onclick="event.stopPropagation(); selecionarResultado(${i})" class="bg-blue-600 hover:bg-blue-700 text-xs px-3 py-1.5 rounded-lg transition font-medium">Selecionar</button>` : ''}
+                        ${hasPolygon ? `<button onclick="event.stopPropagation(); baixarGeoJSON(nominatimCache[${i}])" class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded-lg transition">${t('btnDownload')}</button>` : ''}
+                        ${hasPolygon ? `<button onclick="event.stopPropagation(); selecionarResultado(${i})" class="bg-blue-600 hover:bg-blue-700 text-xs px-3 py-1.5 rounded-lg transition font-medium">${t('btnSelect')}</button>` : ''}
                     </div>
                 `;
 
@@ -390,9 +668,18 @@
         }
 
         // ============================================================
-        // Converter
+        // Converter (with loading overlay)
         // ============================================================
         function converter() {
+            showLoading();
+            // setTimeout lets the browser paint the overlay before heavy work
+            setTimeout(() => {
+                try { _converter(); }
+                finally { hideLoading(); }
+            }, 50);
+        }
+
+        function _converter() {
             const erroEl = document.getElementById('erro');
             const resultadosEl = document.getElementById('resultados');
             erroEl.classList.add('hidden');
@@ -400,7 +687,7 @@
 
             const input = document.getElementById('geojsonInput').value.trim();
             if (!input) {
-                erroEl.textContent = 'Cole ou carregue um GeoJSON primeiro.';
+                erroEl.textContent = t('errEmpty');
                 erroEl.classList.remove('hidden');
                 return;
             }
@@ -409,7 +696,7 @@
             try {
                 geojson = JSON.parse(input);
             } catch (e) {
-                erroEl.textContent = 'JSON inválido: ' + e.message;
+                erroEl.textContent = t('errJson') + e.message;
                 erroEl.classList.remove('hidden');
                 return;
             }
@@ -425,7 +712,7 @@
             }
 
             if (features.length === 0) {
-                erroEl.textContent = 'Nenhuma feature encontrada no GeoJSON.';
+                erroEl.textContent = t('errNoFeature');
                 erroEl.classList.remove('hidden');
                 return;
             }
@@ -497,7 +784,7 @@
                             <label class="block text-xs text-gray-400 mb-1">${escapeHtml(c.label)} <span class="text-gray-600">(${encoded.length} chars)</span></label>
                             <div class="relative">
                                 <textarea readonly rows="${c.rows}" class="w-full bg-gray-900 border border-gray-600 rounded p-2 text-xs font-mono ${c.color} resize-y pr-16">${escapeHtml(c.value)}</textarea>
-                                <button onclick="copiar(this, this.previousElementSibling.value)" class="absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded transition">Copiar</button>
+                                <button onclick="copiar(this, this.previousElementSibling.value)" class="absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded transition">${t('btnCopy')}</button>
                             </div>
                         </div>`;
                     }
@@ -505,7 +792,7 @@
                     <div class="flex items-center gap-2 py-1.5 border-b border-gray-700/50 group">
                         <span class="text-xs text-gray-400 w-48 shrink-0">${escapeHtml(c.label)}</span>
                         <span class="text-sm font-mono ${c.color} flex-1 truncate" title="${escapeHtml(c.value)}">${escapeHtml(c.value)}</span>
-                        <button onclick="copiar(this, '${escapeHtml(c.value).replace(/'/g, "\\'")}')" class="opacity-0 group-hover:opacity-100 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded transition shrink-0">Copiar</button>
+                        <button onclick="copiar(this, '${escapeHtml(c.value).replace(/'/g, "\\'")}')" class="opacity-0 group-hover:opacity-100 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded transition shrink-0">${t('btnCopy')}</button>
                     </div>`;
                 }).join('');
 
@@ -513,7 +800,7 @@
                 <div class="bg-gray-800 border border-gray-700 rounded-lg p-5">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-blue-400">${escapeHtml(name)}</h3>
-                        <button onclick="baixarGeoJSONTexto('${downloadId}')" class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded-lg transition">Baixar .geojson</button>
+                        <button onclick="baixarGeoJSONTexto('${downloadId}')" class="bg-gray-700 hover:bg-gray-600 text-xs px-3 py-1.5 rounded-lg transition">${t('btnDownload')}</button>
                     </div>
                     <textarea id="${downloadId}" class="hidden">${escapeHtml(singleFeatureGeoJSON)}</textarea>
                     ${camposHtml}
@@ -521,12 +808,12 @@
             }
 
             if (count === 0) {
-                erroEl.textContent = 'Nenhum polígono (Polygon/MultiPolygon) encontrado nas features.';
+                erroEl.textContent = t('errNoPolygon');
                 erroEl.classList.remove('hidden');
                 return;
             }
 
-            resultadosEl.innerHTML = `<h2 class="text-lg font-semibold text-gray-300">${count} polígono(s) convertido(s)</h2>` + html;
+            resultadosEl.innerHTML = `<h2 class="text-lg font-semibold text-gray-300">${count} ${t('resultCount')}</h2>` + html;
             renderPreview(previewData);
             atualizarBotoes();
         }
@@ -553,7 +840,7 @@
         function copiar(btn, text) {
             navigator.clipboard.writeText(text).then(() => {
                 const original = btn.textContent;
-                btn.textContent = 'Copiado!';
+                btn.textContent = t('btnCopied');
                 btn.classList.add('bg-green-700');
                 setTimeout(() => {
                     btn.textContent = original;
