@@ -231,6 +231,8 @@
                 errSearchEmpty: 'Fill in at least one search field.',
                 errSearchNone: 'No results found for',
                 errSearchFail: 'Nominatim search error: ',
+                errSearchNoArea: 'No neighborhood boundary found for',
+                errSearchOnlyPois: 'Only points of interest were returned (not an administrative boundary)',
                 resultCount: 'polygon(s) converted',
                 loading: 'Converting...',
                 // SEO
@@ -282,6 +284,8 @@
                 errSearchEmpty: 'Preencha ao menos um campo de busca.',
                 errSearchNone: 'Nenhum resultado encontrado para',
                 errSearchFail: 'Erro na busca Nominatim: ',
+                errSearchNoArea: 'Nenhum limite de bairro encontrado para',
+                errSearchOnlyPois: 'Só vieram pontos de interesse (não um limite administrativo)',
                 resultCount: 'polígono(s) convertido(s)',
                 loading: 'Convertendo...',
                 // SEO
@@ -414,6 +418,17 @@
         // ============================================================
         // Busca Nominatim
         // ============================================================
+        const AREA_TYPES = new Set(['suburb', 'neighbourhood', 'quarter', 'city_district', 'borough', 'city', 'town', 'village', 'municipality', 'administrative']);
+
+        function ehLimiteDeArea(f) {
+            const p = f.properties || {};
+            const geom = f.geometry?.type;
+            const temPoligono = geom === 'Polygon' || geom === 'MultiPolygon';
+            const ehArea = (p.category === 'boundary' || p.category === 'place')
+                && (AREA_TYPES.has(p.type) || AREA_TYPES.has(p.addresstype));
+            return temPoligono && ehArea;
+        }
+
         async function buscarNominatim() {
             const bairro = document.getElementById('inputBairro').value.trim();
             const cidade = document.getElementById('inputCidade').value.trim();
@@ -440,7 +455,8 @@
                     format: 'geojson',
                     polygon_geojson: '1',
                     polygon_threshold: '0.0001',
-                    limit: '5'
+                    addressdetails: '1',
+                    limit: '10'
                 });
 
                 const resp = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
@@ -457,7 +473,15 @@
                     return;
                 }
 
-                exibirResultadosNominatim(data.features);
+                const areas = data.features.filter(ehLimiteDeArea);
+                if (areas.length === 0) {
+                    const achados = data.features.map(f => `${f.properties?.category || '?'}/${f.properties?.type || '?'}`).join(', ');
+                    mostrarErro(`${t('errSearchNoArea')} "${q}". ${t('errSearchOnlyPois')}: ${achados}.`);
+                    document.getElementById('nominatimResultados').classList.add('hidden');
+                    return;
+                }
+
+                exibirResultadosNominatim(areas);
             } catch (e) {
                 mostrarErro(t('errSearchFail') + e.message);
             } finally {
